@@ -1,30 +1,31 @@
 clear;close all;
 
-folder = 'path/to/train/folder';
+folder = 'C:\Users\Admin\Desktop\archive\DIV2K_train_HR\DIV2K_train_HR';
 
-savepath = 'train.h5';
+savepath = 'D:\train248';
 size_input = 41;
 size_label = 41;
 stride = 41;
 
 %% scale factors
-scale = [2,3,4];
+scale = [2,4,8];
 %% downsizing
 downsizes = [1,0.7,0.5];
 
 %% initialization
-data = zeros(size_input, size_input, 1, 1);
-label = zeros(size_label, size_label, 1, 1);
-
-count = 0;
-margain = 0;
+% data = zeros(size_input, size_input, 1, 1);
+% label = zeros(size_label, size_label, 1, 1);
 
 %% generate data
 filepaths = [];
 filepaths = [filepaths; dir(fullfile(folder, '*.jpg'))];
 filepaths = [filepaths; dir(fullfile(folder, '*.bmp'))];
+filepaths = [filepaths; dir(fullfile(folder, '*.png'))];
 
-for i = 1 : length(filepaths)
+parfor i = 1 : length(filepaths), 8
+    count = 0;
+    data = zeros(size_input, size_input, 1, 1);
+    label = zeros(size_label, size_label, 1, 1);
     for flip = 1: 3
         for degree = 1 : 4
             for s = 1 : length(scale)
@@ -67,27 +68,25 @@ for i = 1 : length(filepaths)
             end
         end
     end
-end
+    order = randperm(count);
+    data = data(:, :, 1, order);
+    label = label(:, :, 1, order); 
+    %% writing to HDF5
+    chunksz = 64;
+    created_flag = false;
+    totalct = 0;
 
-order = randperm(count);
-data = data(:, :, 1, order);
-label = label(:, :, 1, order); 
+    for batchno = 1:floor(count/chunksz)
+        batchno
+        last_read=(batchno-1)*chunksz;
+        batchdata = data(:,:,1,last_read+1:last_read+chunksz); 
+        batchlabs = label(:,:,1,last_read+1:last_read+chunksz);
 
-%% writing to HDF5
-chunksz = 64;
-created_flag = false;
-totalct = 0;
-
-for batchno = 1:floor(count/chunksz)
-    batchno
-    last_read=(batchno-1)*chunksz;
-    batchdata = data(:,:,1,last_read+1:last_read+chunksz); 
-    batchlabs = label(:,:,1,last_read+1:last_read+chunksz);
-
-    startloc = struct('dat',[1,1,1,totalct+1], 'lab', [1,1,1,totalct+1]);
-    curr_dat_sz = store2hdf5(savepath, batchdata, batchlabs, ~created_flag, startloc, chunksz); 
-    created_flag = true;
-    totalct = curr_dat_sz(end);
+        startloc = struct('dat',[1,1,1,totalct+1], 'lab', [1,1,1,totalct+1]);
+        curr_dat_sz = store2hdf5(savepath+"\"+i+".h5", batchdata, batchlabs, ~created_flag, startloc, chunksz); 
+        created_flag = true;
+        totalct = curr_dat_sz(end);
+    end
 end
 
 h5disp(savepath);
